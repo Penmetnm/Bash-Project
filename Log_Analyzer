@@ -1,1 +1,99 @@
+#!/bin/bash
 
+# Function to display usage information
+usage() {
+    echo "Usage: $0 [-h] [-d DATE] [-s SEVERITY] <log_file>"
+    echo "Analyze log files and extract specific information."
+    echo
+    echo "Options:"
+    echo "  -h            Display this help message"
+    echo "  -d DATE       Filter logs by date (YYYY-MM-DD format)"
+    echo "  -s SEVERITY   Filter logs by severity (INFO, WARNING, ERROR)"
+    echo
+    echo "Arguments:"
+    echo "  log_file      Path to the log file to analyze"
+    exit 1
+}
+
+# Initialize variables
+date_filter=""
+severity_filter=""
+
+# Parse command-line options
+while getopts ":hd:s:" opt; do
+    case $opt in
+        h)
+            usage
+            ;;
+        d)
+            date_filter=$OPTARG
+            ;;
+        s)
+            severity_filter=$OPTARG
+            ;;
+        \?)
+            echo "Error: Invalid option -$OPTARG" >&2
+            usage
+            ;;
+        :)
+            echo "Error: Option -$OPTARG requires an argument" >&2
+            usage
+            ;;
+    esac
+done
+
+# Shift the parsed options out of the arguments list
+shift $((OPTIND-1))
+
+# Check if a log file is provided
+if [ $# -eq 0 ]; then
+    echo "Error: No log file specified" >&2
+    usage
+fi
+
+log_file=$1
+
+# Check if the log file exists
+if [ ! -f "$log_file" ]; then
+    echo "Error: Log file '$log_file' not found" >&2
+    exit 1
+fi
+
+# Build the grep command based on provided filters
+grep_cmd="grep -E"
+
+if [ -n "$date_filter" ]; then
+    grep_cmd+=" '$date_filter'"
+fi
+
+if [ -n "$severity_filter" ]; then
+    grep_cmd+=" '$severity_filter'"
+fi
+
+# Regular expression to match log entries
+log_regex="^([0-9]{4}-[0-9]{2}-[0-9]{2}) ([0-9]{2}:[0-9]{2}:[0-9]{2}) (\w+): (.+)$"
+
+# Process the log file
+echo "Analyzing log file: $log_file"
+echo "----------------------------------------"
+
+eval "$grep_cmd '$log_regex' '$log_file'" | while read -r line; do
+    if [[ $line =~ $log_regex ]]; then
+        date="${BASH_REMATCH[1]}"
+        time="${BASH_REMATCH[2]}"
+        severity="${BASH_REMATCH[3]}"
+        message="${BASH_REMATCH[4]}"
+        
+        echo "Date: $date"
+        echo "Time: $time"
+        echo "Severity: $severity"
+        echo "Message: $message"
+        echo "----------------------------------------"
+    fi
+done
+
+# Count occurrences of each severity level
+echo "Summary:"
+echo "INFO: $(grep -c "INFO" "$log_file")"
+echo "WARNING: $(grep -c "WARNING" "$log_file")"
+echo "ERROR: $(grep -c "ERROR" "$log_file")"
